@@ -3,6 +3,7 @@ const app = express();
 const User = require('./models/user')
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
+const session = require('express-session')
 
 mongoose.connect('mongodb://127.0.0.1:27017/authDemo', { useNewUrlParser: true, useUnifiedTopology: true })
 .then(() => {
@@ -17,6 +18,7 @@ app.set('view engine', 'ejs');
 app.set('views', 'views');
 
 app.use(express.urlencoded({ extended: true}));
+app.use(session({ secret: 'notagoodsecret'}))
 
 app.get('/', (req, res) => {
     res.send('Welcome Home');
@@ -34,6 +36,7 @@ app.post('/register', async (req, res) => {
         password: hash
     })
     await user.save();
+    req.session.user_id = user._id;
     res.redirect('/');
 })
 
@@ -46,14 +49,23 @@ app.post('/login', async (req, res) => {
     const user = await User.findOne({ username });
     const validPassword = await bcrypt.compare(password, user.password);
     if (validPassword) {
-        res.send("Successfully logged in");
+        req.session.user_id = user._id;
+        res.redirect('/secret');
     } else {
-        res.send("Could not log you in");
+        res.redirect('/login');
     }
 })
 
+app.post('/logout', (req, res) => {
+    req.session.user_id = null;
+    res.redirect('/login');
+})
+
 app.get('/secret', (req, res) => {
-    res.send("Super secret mojodojo")
+    if (!req.session.user_id) {
+        return res.redirect('/login');
+    }
+    res.render('secret');
 })
 
 app.listen(3000, () => {
